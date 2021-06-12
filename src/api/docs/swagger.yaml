@@ -33,6 +33,21 @@ paths:
             type: integer
             default: 20
           description: The number of items to list per page.
+        - in: query
+          name: sortBy
+          required: false
+          schema:
+            type: string
+            default: id
+            enum: ["id", "status"]
+          description: The sort by column.
+        - in: query
+          name: sortOrder
+          required: false
+          schema:
+            type: string
+            default: desc
+            enum: ["desc", "asc"]
       responses:
         "200":
           description: OK
@@ -134,10 +149,7 @@ components:
           example: "excellent"
           description: "The remark of candidate"
         interview:
-          type: array
-          description: "Interviews associated to this job candidate."
-          items:
-            $ref: "#/components/schemas/Interview"
+          $ref: "#/components/schemas/Interview"
     Payment:
       required:
         - min

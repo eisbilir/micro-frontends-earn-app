@@ -16,6 +16,8 @@ const errors = require("../common/errors");
 async function getMyJobApplications(currentUser, criteria) {
   const page = criteria.page;
   const perPage = criteria.perPage;
+  const sortBy = criteria.sortBy;
+  const sortOrder = criteria.sortOrder;
   const emptyResult = {
     total: 0,
     page,
@@ -36,20 +38,24 @@ async function getMyJobApplications(currentUser, criteria) {
     );
   }
   // get jobCandidates of current user by calling taas-api
-  const { result: jobCandidates } = await helper.getJobCandidates({
+  const jobCandidates = await helper.getJobCandidates({
     userId,
-    perPage: 10000,
+    page,
+    perPage,
+    sortBy,
+    sortOrder,
   });
   // if no candidates found then return empty result
-  if (jobCandidates.length === 0) {
+  if (jobCandidates.result.length === 0) {
     return emptyResult;
   }
-  const jobIds = _.map(jobCandidates, "jobId");
+  const jobIds = _.map(jobCandidates.result, "jobId");
   // get jobs of current user by calling taas-api
-  const jobs = await helper.getJobs({ jobIds, page, perPage });
+  const { result: jobs } = await helper.getJobs({ jobIds, page: 1, perPage });
   // apply desired structure
-  const JobApplications = _.map(jobs.result, (job) => {
-    const jobApplication = {
+  const jobApplications = _.map(jobCandidates.result, (jobCandidate) => {
+    const job = _.find(jobs, ["id", jobCandidate.jobId]);
+    return {
       title: job.title,
       payment: {
         min: job.minSalary,
@@ -60,23 +66,19 @@ async function getMyJobApplications(currentUser, criteria) {
       hoursPerWeek: job.hoursPerWeek,
       location: job.jobLocation,
       workingHours: job.jobTimezone,
+      status: jobCandidate.status,
+      interview: !_.isEmpty(jobCandidate.interviews)
+        ? _.maxBy(jobCandidate.interviews, "round")
+        : null,
+      remark: jobCandidate.remark,
       duration: job.duration,
     };
-    // find the current user inside job's candidates
-    const candidate = _.find(
-      job.candidates,
-      (candidate) => candidate.userId === userId
-    );
-    jobApplication.status = candidate.status;
-    (jobApplication.interview = candidate.interviews),
-      (jobApplication.remark = candidate.remark);
-    return jobApplication;
   });
   return {
-    total: jobs.total,
-    page: jobs.page,
-    perPage: jobs.perPage,
-    result: JobApplications,
+    total: jobCandidates.total,
+    page: jobCandidates.page,
+    perPage: jobCandidates.perPage,
+    result: jobApplications,
   };
 }
 
@@ -87,6 +89,8 @@ getMyJobApplications.schema = Joi.object()
       .keys({
         page: Joi.page(),
         perPage: Joi.perPage(),
+        sortBy: Joi.string().valid("id", "status").default("id"),
+        sortOrder: Joi.string().valid("desc", "asc").default("desc"),
       })
       .required(),
   })
